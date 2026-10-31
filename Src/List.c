@@ -39,7 +39,7 @@ u16 List_AddTail(ListHandle_t List, ListElementHandle_t Element) {
     List->Tail->Next = Element;
   } else {
     List->Head = Element;
-    List->Current = Element;
+    List->current = Element;
   }
   List->Tail = Element;
   List->Size++;
@@ -57,7 +57,7 @@ u16 List_AddHead(ListHandle_t List, ListElementHandle_t Element) {
     List->Head->Prev = Element;
   } else {
     List->Tail = Element;
-    List->Current = Element;
+    List->current = Element;
   }
   List->Head = Element;
   List->Size++;
@@ -77,7 +77,14 @@ u16 List_Remove(ListHandle_t List, ListElementHandle_t Element) {
   } else {
     List->Tail = Element->Prev;
   }
-  List->Size--;
+  if (List->current == Element) {
+    List->current = Element->Next != NULL ? Element->Next : Element->Prev;
+  }
+  Element->Next = NULL;
+  Element->Prev = NULL;
+  if (List->Size > 0) {
+    List->Size--;
+  }
   return LIST_OK;
 }
 
@@ -117,35 +124,35 @@ u16 List_AddBefore(ListHandle_t List, ListElementHandle_t Element,
 }
 
 u16 List_GetNext(ListHandle_t List, ListElementHandle_t *Element) {
-  if (List == NULL || *Element == NULL) {
+  if (List == NULL || Element == NULL) {
     return LIST_ERROR_NULL_PARAM;
   }
-  if (List->current == NULL) {
+  if (List->current == NULL || List->current->Next == NULL) {
     return LIST_ERROR_NOT_FOUND;
   }
-  *Element = List->Current->Next;
+  *Element = List->current->Next;
   return LIST_OK;
 }
 
 u16 List_GetPrev(ListHandle_t List, ListElementHandle_t *Element) {
-  if (List == NULL || *Element == NULL) {
+  if (List == NULL || Element == NULL) {
     return LIST_ERROR_NULL_PARAM;
   }
-  if (List->current == NULL) {
+  if (List->current == NULL || List->current->Prev == NULL) {
     return LIST_ERROR_NOT_FOUND;
   }
-  *Element = List->Current->Prev;
+  *Element = List->current->Prev;
   return LIST_OK;
 }
 
 u16 List_GetCurrent(ListHandle_t List, ListElementHandle_t *Element) {
-  if (List == NULL || *Element == NULL) {
+  if (List == NULL || Element == NULL) {
     return LIST_ERROR_NULL_PARAM;
   }
   if (List->current == NULL) {
     return LIST_ERROR_NOT_FOUND;
   }
-  *Element = List->Current;
+  *Element = List->current;
   return LIST_OK;
 }
 
@@ -202,6 +209,9 @@ u16 List_Size(ListHandle_t List) {
 u16 List_Peek(ListHandle_t List, ListElementHandle_t Element) {
   if (List == NULL || Element == NULL) {
     return LIST_ERROR_NULL_PARAM;
+  }
+  if (List->Head == NULL) {
+    return LIST_ERROR_EMPTY;
   }
   Element->Data = List->Head->Data;
   Element->Prev = List->Head->Prev;

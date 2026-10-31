@@ -80,6 +80,5 @@ u16 Task_Stop(TCB_t *TaskControlBlock);
 u16 Task_Suspend(TCB_t *TaskControlBlock);
 u16 Task_Resume(TCB_t *TaskControlBlock);
 u16 Task_Yield(TCB_t *TaskControlBlock);
-void Task_DispatchReady(u32 CurrentTick);
 
 #endif //_TASK_H_

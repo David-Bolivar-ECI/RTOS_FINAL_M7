@@ -50,6 +50,7 @@ u16 Queue_Dequeue(QueueHandle_t Queue, QueueElementHandle_t *Element) {
   }
   *Element = Queue->Head;
   Queue->Head = Queue->Head->Next;
+  (*Element)->Next = NULL;
   Queue->Size--;
   if (Queue->Size == 0 || (Queue->Head == NULL)) {
     Queue->Tail = NULL;
@@ -95,24 +96,78 @@ u16 Queue_Size(QueueHandle_t Queue) {
 }
 
 /*!
- * @brief Peeks at the copied front element of the queue without removing it
+ * @brief Gets the front element of the queue without removing it
  * @param Queue Handle to the queue.
- * @param Element Pointer to store the copied front element.
+ * @param Element Pointer to store the front element handle.
  * @return QUEUE_OK if successful, error code otherwise.
  * @return QUEUE_ERROR_NULL_PARAM if the provided queue handle or element
  * pointer is NULL.
  * @return QUEUE_ERROR_EMPTY if the queue is empty.
  */
-u16 Queue_Peek(QueueHandle_t Queue, QueueElementHandle_t Element) {
+u16 Queue_Peek(QueueHandle_t Queue, QueueElementHandle_t *Element) {
   if (Queue == NULL || Element == NULL) {
     return QUEUE_ERROR_NULL_PARAM;
   }
   if ((Queue->Size == 0) || (Queue->Head == NULL)) {
     return QUEUE_ERROR_EMPTY;
   }
-  Element->data = Queue->Head->data;
-  Element->Next = Queue->Head->Next;
+  *Element = Queue->Head;
   return QUEUE_OK;
+}
+
+/*!
+ * @brief Get the next element in the queue.
+ * @param Element Current queue element.
+ * @param NextElement Pointer to store the next element handle.
+ * @returns QUEUE_OK if a next element exists, otherwise an error code.
+ */
+u16 Queue_GetNext(QueueElementHandle_t Element,
+                  QueueElementHandle_t *NextElement) {
+  if (Element == NULL || NextElement == NULL) {
+    return QUEUE_ERROR_NULL_PARAM;
+  }
+  if (Element->Next == NULL) {
+    *NextElement = NULL;
+    return QUEUE_ERROR_NOT_FOUND;
+  }
+  *NextElement = Element->Next;
+  return QUEUE_OK;
+}
+
+/*!
+ * @brief Remove the queue element whose data matches the provided pointer.
+ * @param Queue Handle to the queue.
+ * @param Data Data pointer to locate and remove.
+ * @returns QUEUE_OK if removed, otherwise an error code.
+ */
+u16 Queue_RemoveData(QueueHandle_t Queue, pv Data) {
+  QueueElementHandle_t element;
+  QueueElementHandle_t previous = NULL;
+
+  if (Queue == NULL || Data == NULL) {
+    return QUEUE_ERROR_NULL_PARAM;
+  }
+
+  element = Queue->Head;
+  while (element != NULL) {
+    if (element->Data == Data) {
+      if (previous == NULL) {
+        Queue->Head = element->Next;
+      } else {
+        previous->Next = element->Next;
+      }
+      if (Queue->Tail == element) {
+        Queue->Tail = previous;
+      }
+      element->Next = NULL;
+      element->Data = NULL;
+      Queue->Size--;
+      return QUEUE_OK;
+    }
+    previous = element;
+    element = element->Next;
+  }
+  return QUEUE_ERROR_NOT_FOUND;
 }
 /*******************************************************
  *   IMPLEMENTACIONDE FUNCIONES PRIVADAS DEL _QUEUE_H_    *

@@ -64,9 +64,12 @@ typedef struct Queue {
  *******************************************************/
 
 u16 Queue_Init(QueueHandle_t Queue);
-u16 Queue_Dequeue(QueueHandle_t Queue, QueueElementHandle_t Element);
-u16 Queue_Enqueue(QueueHandle_t Queue, QueueElementHandle_t *Element);
+u16 Queue_Dequeue(QueueHandle_t Queue, QueueElementHandle_t *Element);
+u16 Queue_Enqueue(QueueHandle_t Queue, QueueElementHandle_t Element);
 u16 Queue_Size(QueueHandle_t Queue);
-u16 Queue_Peek(QueueHandle_t Queue, QueueElementHandle_t Element);
+u16 Queue_Peek(QueueHandle_t Queue, QueueElementHandle_t *Element);
+u16 Queue_GetNext(QueueElementHandle_t Element,
+                  QueueElementHandle_t *NextElement);
+u16 Queue_RemoveData(QueueHandle_t Queue, pv Data);
 
 #endif //_QUEUE_H_

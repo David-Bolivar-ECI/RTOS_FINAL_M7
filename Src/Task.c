@@ -1,10 +1,5 @@
 #include "RtosIncludes.h"
 
-#include <stddef.h>
-#include <string.h>
-
-#define RTOS_MAX_TASKS 8u
-
 static TCB_t *TaskRegistry[RTOS_MAX_TASKS];
 static u16 TaskCount;
 static u16 NextTaskId;
@@ -25,6 +20,7 @@ u16 Task_Init(void) {
 u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
                 u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName) {
   u16 index;
+  u16 schedulerStatus;
 
   if (!TaskModuleInitialized) {
     return TASK_ERROR_INVALID_STATE;
@@ -46,7 +42,7 @@ u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
     }
   }
 
-  TaskControlBlock->TaskId = NextTaskId++;
+  TaskControlBlock->TaskId = NextTaskId;
   TaskControlBlock->TaskName = TaskName;
   TaskControlBlock->TaskStatus = TASK_READY;
   TaskControlBlock->TaskPriority = TaskPriority;
@@ -54,14 +50,14 @@ u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
   TaskControlBlock->TaskLastRunMs = Scheduler_GetTick();
   TaskControlBlock->TaskFunction = TaskFunction;
 
-  index = TaskCount;
-  while (index > 0u &&
-         TaskRegistry[index - 1u]->TaskPriority > TaskPriority) {
-    TaskRegistry[index] = TaskRegistry[index - 1u];
-    index--;
+  schedulerStatus = Scheduler_RegisterTask(TaskPriority, TaskControlBlock);
+  if (schedulerStatus != SCHEDULER_OK) {
+    return schedulerStatus == SCHEDULER_ERROR_FULL ? TASK_ERROR_FULL
+                                                   : TASK_ERROR_FAIL;
   }
-  TaskRegistry[index] = TaskControlBlock;
-  TaskCount++;
+
+  TaskRegistry[TaskCount++] = TaskControlBlock;
+  NextTaskId++;
   return TASK_OK;
 }
 
@@ -88,6 +84,9 @@ u16 Task_Delete(TCB_t *TaskControlBlock) {
   }
   for (index = 0; index < TaskCount; index++) {
     if (TaskRegistry[index] == TaskControlBlock) {
+      if (Scheduler_UnregisterTask(TaskControlBlock) != SCHEDULER_OK) {
+        return TASK_ERROR_FAIL;
+      }
       for (; index + 1u < TaskCount; index++) {
         TaskRegistry[index] = TaskRegistry[index + 1u];
       }
@@ -143,22 +142,4 @@ u16 Task_Yield(TCB_t *TaskControlBlock) {
     return TASK_ERROR_NULL_PARAM;
   }
   return TASK_OK;
-}
-
-void Task_DispatchReady(u32 CurrentTick) {
-  u16 index;
-
-  for (index = 0; index < TaskCount; index++) {
-    TCB_t *task = TaskRegistry[index];
-
-    if (task != NULL && task->TaskStatus == TASK_READY &&
-        (u32)(CurrentTick - task->TaskLastRunMs) >= task->TaskPeriodMs) {
-      task->TaskLastRunMs = CurrentTick;
-      task->TaskStatus = TASK_RUNNING;
-      task->TaskFunction();
-      if (task->TaskStatus == TASK_RUNNING) {
-        task->TaskStatus = TASK_READY;
-      }
-    }
-  }
 }
