@@ -1,0 +1,5 @@
+C:/Users/eboli/Documents/DAVID/1ULTIMO SEMESTRE/SOTR/SOTR_FINAL_M7/RTOS_FINAL_M7/Src/Scheduler.c:13:5:Scheduler_Init	16	static
+C:/Users/eboli/Documents/DAVID/1ULTIMO SEMESTRE/SOTR/SOTR_FINAL_M7/RTOS_FINAL_M7/Src/Scheduler.c:28:5:Shcheduler_Init	8	static
+C:/Users/eboli/Documents/DAVID/1ULTIMO SEMESTRE/SOTR/SOTR_FINAL_M7/RTOS_FINAL_M7/Src/Scheduler.c:30:5:Scheduler_GetTick	4	static
+C:/Users/eboli/Documents/DAVID/1ULTIMO SEMESTRE/SOTR/SOTR_FINAL_M7/RTOS_FINAL_M7/Src/Scheduler.c:32:6:Scheduler_Run	8	static,ignoring_inline_asm
+C:/Users/eboli/Documents/DAVID/1ULTIMO SEMESTRE/SOTR/SOTR_FINAL_M7/RTOS_FINAL_M7/Src/Scheduler.c:39:6:SysTick_Handler	4	static
