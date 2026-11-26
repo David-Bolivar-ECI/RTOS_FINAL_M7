@@ -18,7 +18,9 @@
 
 static TCB_t Tasks[4];
 static Mutex_t LedMutex;
+static Mutex_t GreenBlueMutex;
 static Semaphore_t ResourceSemaphore;
+static MessageQueue_t BlueLedMessageQueue;
 static u8 eenable;
 static const TaskFlags_t GreenLedTaskFlags = RTOS_TASK_NO_FLAGS;
 
@@ -97,19 +99,37 @@ static u8 SharedResourceIsEnabled(void) {
 
 static void GreenLedTask(void) {
   static u8 isOn;
-
-  if (SharedResourceIsEnabled() == FALSE) {
-    return;
-  }
+  static s32 blinkCounter;
 
   if (isOn == FALSE) {
-    if (Mutex_Take(&LedMutex) != MUTEX_OK) {
+    if (SharedResourceIsEnabled() == FALSE) {
+      return;
+    }
+    if (Mutex_Take(&GreenBlueMutex) != MUTEX_OK ||
+        Mutex_Take(&LedMutex) != MUTEX_OK) {
       Error_Handler();
+    }
+    if (SharedResourceIsEnabled() == FALSE) {
+      if (Mutex_Release(&LedMutex) != MUTEX_OK ||
+          Mutex_Release(&GreenBlueMutex) != MUTEX_OK) {
+        Error_Handler();
+      }
+      return;
     }
     ToggleLed(&GPIOB_BSRR, LED_GREEN_PIN, &isOn);
   } else {
     ToggleLed(&GPIOB_BSRR, LED_GREEN_PIN, &isOn);
     if (Mutex_Release(&LedMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+    if (Mutex_Release(&GreenBlueMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+    if (blinkCounter < 0x7FFFFFFF) {
+      blinkCounter++;
+    }
+    if (MessageQueue_Send(Tasks[2].TaskMessageQueue, MESSAGE_TYPE_SCORE,
+                          blinkCounter) != MESSAGE_QUEUE_OK) {
       Error_Handler();
     }
   }
@@ -118,17 +138,44 @@ static void GreenLedTask(void) {
 
 static void BlueLedTask(void) {
   static u8 isOn;
+  static s32 remainingBlinks;
+  Message_t message;
+  u16 result;
 
-  if (SharedResourceIsEnabled() == FALSE) {
-    return;
+  if (remainingBlinks == 0) {
+    if (SharedResourceIsEnabled() == FALSE) {
+      return;
+    }
+    result = MessageQueue_Receive(Tasks[2].TaskMessageQueue, &message);
+    if (result == MESSAGE_QUEUE_ERROR_EMPTY) {
+      return;
+    }
+    if (result != MESSAGE_QUEUE_OK) {
+      Error_Handler();
+    }
+    if (message.MsgType != MESSAGE_TYPE_SCORE || message.Value <= 0) {
+      return;
+    }
+    remainingBlinks = message.Value;
+    if (Mutex_Take(&GreenBlueMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
   }
+
   ToggleLed(&GPIOB_BSRR, LED_BLUE_PIN, &isOn);
+  if (isOn == FALSE) {
+    remainingBlinks--;
+    if (remainingBlinks == 0 &&
+        Mutex_Release(&GreenBlueMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+  }
 }
 
 static void RedLedTask(void) {
   static u8 isOn;
 
-  if (SharedResourceIsEnabled() == FALSE) {
+  if (isOn == FALSE && SharedResourceIsEnabled() == FALSE) {
     return;
   }
 
@@ -151,6 +198,8 @@ int main(void) {
     Error_Handler();
   }
   if (Mutex_Init(&LedMutex) != MUTEX_OK ||
+      Mutex_Init(&GreenBlueMutex) != MUTEX_OK ||
+      MessageQueue_Init(&BlueLedMessageQueue) != MESSAGE_QUEUE_OK ||
       Semaphore_Init(&ResourceSemaphore) != SEMAPHORE_OK) {
     Error_Handler();
   }
@@ -159,8 +208,8 @@ int main(void) {
                   NULL) != TASK_OK ||
       Task_Create(&Tasks[1], GreenLedTask, 1u, 1000u, "green-0.5Hz",
                   &GreenLedTaskFlags, NULL) != TASK_OK ||
-      Task_Create(&Tasks[2], BlueLedTask, 1u, 500u, "blue-1Hz", NULL, NULL) !=
-          TASK_OK ||
+      Task_Create(&Tasks[2], BlueLedTask, 1u, 1000u, "blue-message",
+                  NULL, &BlueLedMessageQueue) != TASK_OK ||
       Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz", NULL, NULL) !=
           TASK_OK) {
     Error_Handler();
