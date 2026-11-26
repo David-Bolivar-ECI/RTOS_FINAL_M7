@@ -1,108 +1,97 @@
-/*******************************************************
- *              INCLUSION LIBRERIAS  .h                 *
- *******************************************************/
-#include "Mutex.h"
-#include "Queue.h"
 #include "RtosIncludes.h"
-/*******************************************************
- *          DEFINICIONES PRIVADAS DEL _MUTEX_        *
- *******************************************************/
-
-/*******************************************************
- *            TIPOS PRIVADOS DEL _MUTEX_              *
- *******************************************************/
-
-/*******************************************************
- *   DEFINICION DE FUNCIONES PRIVADAS DEL _MUTEX_    *
- *******************************************************/
-
-/*******************************************************
- *   IMPLEMENTACION DE FUNCIONES PUBLICAS DEL _MUTEX_    *
- *******************************************************/
 
 u16 Mutex_Init(MutexHandler_t mutex) {
-  if (mutex != NULL) {
-    mutex->Busy = FALSE;
-    return Queue_Init(&mutex->WaitQueue);
+  if (mutex == NULL) {
+    return MUTEX_ERROR_NULL_PARAM;
   }
 
-  return MUTEX_ERROR_NULL_PARAM;
+  mutex->Busy = FALSE;
+  mutex->Owner = NULL;
+  return Queue_Init(&mutex->WaitQueue);
 }
 
 u16 Mutex_Take(MutexHandler_t mutex) {
-  u8 Res = MUTEX_ERROR_NULL_PARAM;
-  if (mutex != NULL) {
-    u8 CallScheduler = FALSE;
-    Portable_DisableInterrupts();
-    if (mutex->Busy) {
-      TCB_Handle_t Task = Scheduler_GetCurrentTask();
-      if (Task != NULL) {
-        Task->TaskStatus = TASK_BLOCKED;
-        Task->TaskQueElement.Data = (pv)Task;
-        Res = Queue_Enqueue(&mutex->WaitQueue, &Task->TaskQueueElement);
-        if (Res != QUEUE_OK) {
-          Task->TaskStatus = TASK_RUNNING;
-        } else {
-          CallScheduler = TRUE;
-        }
-      } else {
-        Res = MUTEX_ERROR_OPERATION_FAILED;
-      }
-    }
+  TCB_Handle_t task;
+  u16 result = MUTEX_ERROR_NULL_PARAM;
+  u8 switchRequired = FALSE;
+  u32 previousInterruptState;
 
-    else {
-      mutex->Busy = TRUE;
-      Res = MUTEX_OK;
-    }
-
-    Portable_EnableInterrupts();
-    if (CallScheduler) {
-      Portable_CallScheduler();
-    }
+  if (mutex == NULL) {
+    return MUTEX_ERROR_NULL_PARAM;
   }
 
-  return Res;
+  previousInterruptState = Scheduler_EnterCritical();
+  task = Scheduler_GetCurrentTask();
+  if (task == NULL) {
+    result = MUTEX_ERROR_OPERATION_FAILED;
+  } else if (!mutex->Busy) {
+    mutex->Busy = TRUE;
+    mutex->Owner = task;
+    result = MUTEX_OK;
+  } else if (mutex->Owner == task) {
+    result = MUTEX_ERROR_BUSY;
+  } else if (task->MutexWaitQueueElement.Data != NULL ||
+             task->MutexWaitQueueElement.Next != NULL) {
+    result = MUTEX_ERROR_INVALID_STATE;
+  } else {
+    task->MutexWaitQueueElement.Data = task;
+    result = Queue_Enqueue(&mutex->WaitQueue, &task->MutexWaitQueueElement);
+    if (result == QUEUE_OK) {
+      task->TaskStatus = TASK_BLOCKED;
+      result = MUTEX_OK;
+      switchRequired = TRUE;
+    } else {
+      task->MutexWaitQueueElement.Data = NULL;
+    }
+  }
+  Scheduler_ExitCritical(previousInterruptState);
+
+  if (switchRequired != FALSE) {
+    Scheduler_RequestContextSwitch();
+  }
+  return result;
 }
+
 u16 Mutex_Release(MutexHandler_t mutex) {
-  u8 Res = MUTEX_ERROR_NULL_PARAM;
-  if (mutex != NULL) {
-    u8 CallScheduler = FALSE;
-    Portable_DisableInterrupts();
-    if (mutex->Busy) {
-      if (Queue_Size(&mutex->WaitQueue)) {
-        QueueElementHandle_t Element = NULL;
-        Res = Queue_Dequeue(&mutex->WaitQueue, &Element);
-        if (Res == QUEUE_OK) {
-          if (Element != NULL) {
-            TCB_Handle_t WakeTask = (TCB_Handle_t)Element->Data;
-            if (WakeTask != NULL) {
-              Res = Scheduler_AddTaskToReadyList(WakeTask);
-              if (Res == SCHEDULER_OK) {
-                TCB_Handle_t ActualTask = Scheduler_GetCurrentTask();
-                if (ActualTask != NULL) {
-                  if (WakeTask->TaskPriority < ActualTask->TaskPriority) {
-                    CallScheduler = TRUE;
-                  }
-                }
-              }
-            } else {
-              Res = MUTEX_ERROR_OPERATION_FAILED;
-            }
-          } else {
-            Res = MUTEX_ERROR_OPERATION_FAILED;
-          }
-        }
+  TCB_Handle_t task;
+  u16 result;
+  u32 previousInterruptState;
+
+  if (mutex == NULL) {
+    return MUTEX_ERROR_NULL_PARAM;
+  }
+
+  previousInterruptState = Scheduler_EnterCritical();
+  task = Scheduler_GetCurrentTask();
+  if (task == NULL || !mutex->Busy || mutex->Owner != task) {
+    Scheduler_ExitCritical(previousInterruptState);
+    return MUTEX_ERROR_INVALID_OPERATION;
+  }
+
+  if (Queue_Size(&mutex->WaitQueue) == 0u) {
+    mutex->Busy = FALSE;
+    mutex->Owner = NULL;
+    result = MUTEX_OK;
+  } else {
+    QueueElementHandle_t element = NULL;
+    result = Queue_Dequeue(&mutex->WaitQueue, &element);
+    if (result == QUEUE_OK && element != NULL && element->Data != NULL) {
+      TCB_Handle_t wakeTask = (TCB_Handle_t)element->Data;
+      element->Data = NULL;
+      result = Scheduler_AddTaskToReadyList(wakeTask);
+      if (result == SCHEDULER_OK) {
+        mutex->Owner = wakeTask;
+        result = MUTEX_OK;
       } else {
-        mutex->Busy = FALSE;
-        Res = MUTEX_OK;
+        element->Data = wakeTask;
+        if (Queue_Enqueue(&mutex->WaitQueue, element) != QUEUE_OK) {
+          result = MUTEX_ERROR_OPERATION_FAILED;
+        }
       }
     } else {
-      Res = MUTEX_OK;
-    }
-    Portable_EnableInterrupts();
-    if (CallScheduler) {
-      Portable_CallScheduler();
+      result = MUTEX_ERROR_OPERATION_FAILED;
     }
   }
-  return Res;
+  Scheduler_ExitCritical(previousInterruptState);
+  return result;
 }

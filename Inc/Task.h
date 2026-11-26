@@ -5,6 +5,11 @@
  *              INCLUSION LIBRERIAS  h                 *
  *******************************************************/
 #include "AppTypes.h"
+#include "Queue.h"
+
+#ifndef RTOS_MIN_STACK_SIZE
+#define RTOS_MIN_STACK_SIZE 128u
+#endif
 
 /*******************************************************
  *          DEFINICION DE ERRORES DE _TASK_H_        *
@@ -54,6 +59,7 @@ typedef enum {
   TASK_READY = 0,
   TASK_RUNNING,
   TASK_BLOCKED,
+  TASK_SLEEPING,
   TASK_LAST
 } TaskStatus_t;
 
@@ -65,7 +71,12 @@ typedef struct TCB {
   u32 TaskPeriodMs;
   u32 TaskLastRunMs;
   TaskFunctionCallback TaskFunction;
+  u32 *TaskStackPointer;
+  u32 TaskExceptionReturn;
+  u32 TaskStack[RTOS_MIN_STACK_SIZE] __attribute__((aligned(8)));
+  QueueElement_t MutexWaitQueueElement;
 } TCB_t;
+typedef TCB_t *TCB_Handle_t;
 
 /*******************************************************
  *            FUNCIONES PUBLICAS DEL MODULO H           *

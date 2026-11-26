@@ -7,6 +7,7 @@
 
 #include "AppTypes.h"
 #include "Queue.h"
+#include "Task.h"
 
 /************************************************
  *        DEFINICION DE ERRORES DE _MUTEX_H_     *
@@ -26,7 +27,7 @@
 #define MUTEX_ERROR_INVALID_PARAM MUTEX_BASE_ERROR | ERROR_INVALID_PARAM
 #define MUTEX_ERROR_ALREADY_EXISTS MUTEX_BASE_ERROR | ERROR_ALREADY_EXISTS
 #define MUTEX_ERROR_NOT_IMPLEMENTED MUTEX_BASE_ERROR | ERROR_NOT_IMPLEMENTED
-#define MUTEX_ERROR_BUSY MUTEX_BASE_ERROR | ERROR_BUSY
+#define MUTEX_ERROR_BUSY (MUTEX_BASE_ERROR | ERROR_BUSSY)
 #define MUTEX_ERROR_UNSUPPORTED MUTEX_BASE_ERROR | ERROR_UNSUPPORTED
 #define MUTEX_ERROR_HARDWARE_FAILURE MUTEX_BASE_ERROR | ERROR_HARDWARE_FAILURE
 #define MUTEX_ERROR_SOFTWARE_FAILURE MUTEX_BASE_ERROR | ERROR_SOFTWARE_FAILURE
@@ -52,6 +53,7 @@
  ************************************************/
 typedef struct {
   u8 Busy;
+  TCB_Handle_t Owner;
   Queue_t WaitQueue;
 } Mutex_t, *MutexHandler_t;
 

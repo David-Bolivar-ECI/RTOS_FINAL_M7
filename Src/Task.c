@@ -5,6 +5,21 @@ static u16 TaskCount;
 static u16 NextTaskId;
 static u8 TaskModuleInitialized;
 
+static void Task_ThreadEntry(void) {
+  for (;;) {
+    TCB_Handle_t task = Scheduler_GetCurrentTask();
+
+    if (task == NULL) {
+      for (;;) {
+        __asm volatile("wfi");
+      }
+    }
+
+    task->TaskFunction();
+    Scheduler_SleepCurrentTask();
+  }
+}
+
 u16 Task_Init(void) {
   u16 index;
 
@@ -44,11 +59,17 @@ u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
 
   TaskControlBlock->TaskId = NextTaskId;
   TaskControlBlock->TaskName = TaskName;
-  TaskControlBlock->TaskStatus = TASK_READY;
+  TaskControlBlock->TaskStatus = TASK_SLEEPING;
   TaskControlBlock->TaskPriority = TaskPriority;
   TaskControlBlock->TaskPeriodMs = TaskPeriodMs;
   TaskControlBlock->TaskLastRunMs = Scheduler_GetTick();
   TaskControlBlock->TaskFunction = TaskFunction;
+  TaskControlBlock->MutexWaitQueueElement.Data = NULL;
+  TaskControlBlock->MutexWaitQueueElement.Next = NULL;
+  if (Scheduler_InitializeTaskStack(TaskControlBlock, Task_ThreadEntry) !=
+      SCHEDULER_OK) {
+    return TASK_ERROR_FAIL;
+  }
 
   schedulerStatus = Scheduler_RegisterTask(TaskPriority, TaskControlBlock);
   if (schedulerStatus != SCHEDULER_OK) {
@@ -100,32 +121,44 @@ u16 Task_Delete(TCB_t *TaskControlBlock) {
 
 u16 Task_Start(TCB_t *TaskControlBlock) {
   u16 index;
+  const u32 previousInterruptState = Scheduler_EnterCritical();
 
   if (TaskControlBlock == NULL) {
+    Scheduler_ExitCritical(previousInterruptState);
     return TASK_ERROR_NULL_PARAM;
   }
   for (index = 0; index < TaskCount; index++) {
     if (TaskRegistry[index] == TaskControlBlock) {
       TaskControlBlock->TaskLastRunMs = Scheduler_GetTick();
       TaskControlBlock->TaskStatus = TASK_READY;
+      Scheduler_ExitCritical(previousInterruptState);
+      Scheduler_RequestContextSwitch();
       return TASK_OK;
     }
   }
+  Scheduler_ExitCritical(previousInterruptState);
   return TASK_ERROR_NOT_FOUND;
 }
 
 u16 Task_Stop(TCB_t *TaskControlBlock) {
   u16 index;
+  const u32 previousInterruptState = Scheduler_EnterCritical();
 
   if (TaskControlBlock == NULL) {
+    Scheduler_ExitCritical(previousInterruptState);
     return TASK_ERROR_NULL_PARAM;
   }
   for (index = 0; index < TaskCount; index++) {
     if (TaskRegistry[index] == TaskControlBlock) {
       TaskControlBlock->TaskStatus = TASK_BLOCKED;
+      Scheduler_ExitCritical(previousInterruptState);
+      if (Scheduler_GetCurrentTask() == TaskControlBlock) {
+        Scheduler_RequestContextSwitch();
+      }
       return TASK_OK;
     }
   }
+  Scheduler_ExitCritical(previousInterruptState);
   return TASK_ERROR_NOT_FOUND;
 }
 
@@ -138,8 +171,20 @@ u16 Task_Resume(TCB_t *TaskControlBlock) {
 }
 
 u16 Task_Yield(TCB_t *TaskControlBlock) {
+  const u32 previousInterruptState = Scheduler_EnterCritical();
+
   if (TaskControlBlock == NULL) {
+    Scheduler_ExitCritical(previousInterruptState);
     return TASK_ERROR_NULL_PARAM;
   }
+  if (TaskControlBlock != Scheduler_GetCurrentTask() ||
+      TaskControlBlock->TaskStatus != TASK_RUNNING) {
+    Scheduler_ExitCritical(previousInterruptState);
+    return TASK_ERROR_INVALID_STATE;
+  }
+
+  TaskControlBlock->TaskStatus = TASK_READY;
+  Scheduler_ExitCritical(previousInterruptState);
+  Scheduler_RequestContextSwitch();
   return TASK_OK;
 }
