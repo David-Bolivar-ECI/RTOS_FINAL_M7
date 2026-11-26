@@ -10,10 +10,10 @@
 #include "Queue.h"
 #include "Scheduler.h"
 #include "Task.h"
+#incude "Mutex.h"
 
 #include <stddef.h>
 #include <string.h>
-
 
 /*******************************************************
  *      DEFINICIONES PUBLICAS DEL _RTOS_INCLUDES_H_    *
