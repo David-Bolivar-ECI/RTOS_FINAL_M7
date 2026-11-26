@@ -10,6 +10,7 @@
 #define RTOS_MAX_TASKS_PRIORITIES 16
 #define RTOS_MAX_SEMAPHORES 8
 #define RTOS_MIN_PRIORITY RTOS_MAX_TASKS_PRIORITIES - 1
+#define RTOS_TASK_NO_FLAGS 0u
 
 #include "List.h"
 #include "Queue.h"

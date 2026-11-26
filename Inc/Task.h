@@ -54,6 +54,7 @@
  *            TIPOS PUBLICOS DEL MODULO H              *
  *******************************************************/
 typedef void (*TaskFunctionCallback)(void);
+typedef u32 TaskFlags_t;
 struct Semaphore;
 
 typedef enum {
@@ -71,6 +72,7 @@ typedef struct TCB {
   u8 TaskPriority;
   u32 TaskPeriodMs;
   u32 TaskLastRunMs;
+  TaskFlags_t TaskFlags;
   TaskFunctionCallback TaskFunction;
   u32 *TaskStackPointer;
   u32 TaskExceptionReturn;
@@ -88,7 +90,8 @@ typedef TCB_t *TCB_Handle_t;
  *******************************************************/
 u16 Task_Init(void);
 u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
-                u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName);
+                u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName,
+                const TaskFlags_t *TaskFlags);
 u16 Task_GetIdByName(const char *TaskName);
 u8 Task_IsRegistered(TCB_Handle_t TaskControlBlock);
 u16 Task_Delete(TCB_t *TaskControlBlock);
