@@ -54,6 +54,7 @@
  *            TIPOS PUBLICOS DEL MODULO H              *
  *******************************************************/
 typedef void (*TaskFunctionCallback)(void);
+struct Semaphore;
 
 typedef enum {
   TASK_READY = 0,
@@ -75,6 +76,10 @@ typedef struct TCB {
   u32 TaskExceptionReturn;
   u32 TaskStack[RTOS_MIN_STACK_SIZE] __attribute__((aligned(8)));
   QueueElement_t MutexWaitQueueElement;
+  QueueElement_t SemaphoreWaitQueueElement;
+  struct Semaphore *SemaphoreWaitObject;
+  u8 SemaphoreWaitAccess;
+  u16 SemaphoreWaitResult;
 } TCB_t;
 typedef TCB_t *TCB_Handle_t;
 
@@ -85,6 +90,7 @@ u16 Task_Init(void);
 u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
                 u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName);
 u16 Task_GetIdByName(const char *TaskName);
+u8 Task_IsRegistered(TCB_Handle_t TaskControlBlock);
 u16 Task_Delete(TCB_t *TaskControlBlock);
 u16 Task_Start(TCB_t *TaskControlBlock);
 u16 Task_Stop(TCB_t *TaskControlBlock);
