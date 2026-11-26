@@ -16,6 +16,7 @@
 #define USER_BUTTON_PIN (1u << 13)
 
 static TCB_t Tasks[4];
+static Mutex_t LedMutex;
 
 static void Error_Handler(void) {
   __asm volatile("cpsid i");
@@ -66,7 +67,18 @@ static void ButtonLedTask(void) {
 
 static void GreenLedTask(void) {
   static u8 isOn;
-  ToggleLed(&GPIOB_BSRR, LED_GREEN_PIN, &isOn);
+
+  if (isOn == FALSE) {
+    if (Mutex_Take(&LedMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+    ToggleLed(&GPIOB_BSRR, LED_GREEN_PIN, &isOn);
+  } else {
+    ToggleLed(&GPIOB_BSRR, LED_GREEN_PIN, &isOn);
+    if (Mutex_Release(&LedMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+  }
 }
 
 static void BlueLedTask(void) {
@@ -76,12 +88,26 @@ static void BlueLedTask(void) {
 
 static void RedLedTask(void) {
   static u8 isOn;
-  ToggleLed(&GPIOB_BSRR, LED_RED_PIN, &isOn);
+
+  if (isOn == FALSE) {
+    if (Mutex_Take(&LedMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+    ToggleLed(&GPIOB_BSRR, LED_RED_PIN, &isOn);
+  } else {
+    ToggleLed(&GPIOB_BSRR, LED_RED_PIN, &isOn);
+    if (Mutex_Release(&LedMutex) != MUTEX_OK) {
+      Error_Handler();
+    }
+  }
 }
 
 int main(void) {
   GPIO_Init();
   if (Scheduler_Init() != SCHEDULER_OK || Task_Init() != TASK_OK) {
+    Error_Handler();
+  }
+  if (Mutex_Init(&LedMutex) != MUTEX_OK) {
     Error_Handler();
   }
 
