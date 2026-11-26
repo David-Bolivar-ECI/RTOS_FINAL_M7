@@ -1,4 +1,6 @@
 #include "RtosIncludes.h"
+#include "DisplayTask.h"
+#include "St7789v.h"
 
 #define RCC_AHB1ENR (*(volatile u32 *)0x40023830u)
 #define GPIOB_MODER (*(volatile u32 *)0x40020400u)
@@ -16,7 +18,7 @@
 #define USER_BUTTON_PIN (1u << 13)
 #define GREEN_LED_FLAG (1u << 0)
 
-static TCB_t Tasks[4];
+static TCB_t Tasks[5];
 static Mutex_t LedMutex;
 static Mutex_t GreenBlueMutex;
 static Semaphore_t ResourceSemaphore;
@@ -194,6 +196,9 @@ static void RedLedTask(void) {
 
 int main(void) {
   GPIO_Init();
+  if (DisplayTask_Init() != ST7789V_OK) {
+    Error_Handler();
+  }
   if (Scheduler_Init() != SCHEDULER_OK || Task_Init() != TASK_OK) {
     Error_Handler();
   }
@@ -211,6 +216,8 @@ int main(void) {
       Task_Create(&Tasks[2], BlueLedTask, 1u, 1000u, "blue-message",
                   NULL, &BlueLedMessageQueue) != TASK_OK ||
       Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz", NULL, NULL) !=
+          TASK_OK ||
+      Task_Create(&Tasks[4], DisplayTask_Run, 1u, 1u, "display", NULL, NULL) !=
           TASK_OK) {
     Error_Handler();
   }
