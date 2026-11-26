@@ -66,6 +66,11 @@ u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
   TaskControlBlock->TaskFunction = TaskFunction;
   TaskControlBlock->MutexWaitQueueElement.Data = NULL;
   TaskControlBlock->MutexWaitQueueElement.Next = NULL;
+  TaskControlBlock->SemaphoreWaitQueueElement.Data = NULL;
+  TaskControlBlock->SemaphoreWaitQueueElement.Next = NULL;
+  TaskControlBlock->SemaphoreWaitObject = NULL;
+  TaskControlBlock->SemaphoreWaitAccess = 0u;
+  TaskControlBlock->SemaphoreWaitResult = TASK_OK;
   if (Scheduler_InitializeTaskStack(TaskControlBlock, Task_ThreadEntry) !=
       SCHEDULER_OK) {
     return TASK_ERROR_FAIL;
@@ -97,15 +102,42 @@ u16 Task_GetIdByName(const char *TaskName) {
   return TASK_ERROR_NOT_FOUND;
 }
 
+u8 Task_IsRegistered(TCB_Handle_t TaskControlBlock) {
+  u16 index;
+  u8 isRegistered = FALSE;
+  const u32 previousInterruptState = Scheduler_EnterCritical();
+
+  if (TaskControlBlock != NULL) {
+    for (index = 0; index < TaskCount; index++) {
+      if (TaskRegistry[index] == TaskControlBlock) {
+        isRegistered = TRUE;
+        break;
+      }
+    }
+  }
+  Scheduler_ExitCritical(previousInterruptState);
+  return isRegistered;
+}
+
 u16 Task_Delete(TCB_t *TaskControlBlock) {
   u16 index;
+  u16 semaphoreStatus;
+  const u32 previousInterruptState = Scheduler_EnterCritical();
 
   if (TaskControlBlock == NULL) {
+    Scheduler_ExitCritical(previousInterruptState);
     return TASK_ERROR_NULL_PARAM;
   }
   for (index = 0; index < TaskCount; index++) {
     if (TaskRegistry[index] == TaskControlBlock) {
+      semaphoreStatus = Semaphore_TaskCleanup(TaskControlBlock);
+      if (semaphoreStatus != SEMAPHORE_OK) {
+        Scheduler_ExitCritical(previousInterruptState);
+        return semaphoreStatus == SEMAPHORE_ERROR_BUSY ? TASK_ERROR_BUSY
+                                                       : TASK_ERROR_FAIL;
+      }
       if (Scheduler_UnregisterTask(TaskControlBlock) != SCHEDULER_OK) {
+        Scheduler_ExitCritical(previousInterruptState);
         return TASK_ERROR_FAIL;
       }
       for (; index + 1u < TaskCount; index++) {
@@ -113,9 +145,11 @@ u16 Task_Delete(TCB_t *TaskControlBlock) {
       }
       TaskRegistry[--TaskCount] = NULL;
       TaskControlBlock->TaskStatus = TASK_BLOCKED;
+      Scheduler_ExitCritical(previousInterruptState);
       return TASK_OK;
     }
   }
+  Scheduler_ExitCritical(previousInterruptState);
   return TASK_ERROR_NOT_FOUND;
 }
 
