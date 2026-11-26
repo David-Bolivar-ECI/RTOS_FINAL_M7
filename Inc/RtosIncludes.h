@@ -10,7 +10,6 @@
 #include "Queue.h"
 #include "Scheduler.h"
 #include "Task.h"
-#include "Mutex.h"
 
 #include <stddef.h>
 #include <string.h>
