@@ -12,13 +12,15 @@
 #define LED_GREEN_PIN (1u << 0)
 #define LED_BLUE_PIN (1u << 7)
 #define LED_RED_PIN (1u << 14)
-#define ENABLE_LED_PIN (1u << 12)
+#define GREEN_LED_MIRROR_PIN (1u << 12)
 #define USER_BUTTON_PIN (1u << 13)
+#define GREEN_LED_FLAG (1u << 0)
 
 static TCB_t Tasks[4];
 static Mutex_t LedMutex;
 static Semaphore_t ResourceSemaphore;
 static u8 eenable;
+static const TaskFlags_t GreenLedTaskFlags = RTOS_TASK_NO_FLAGS;
 
 static void Error_Handler(void) {
   __asm volatile("cpsid i");
@@ -37,7 +39,7 @@ static void GPIO_Init(void) {
   GPIOC_PUPDR = (GPIOC_PUPDR & ~(3u << 26)) | (2u << 26);
 
   GPIOB_BSRR = (LED_GREEN_PIN | LED_BLUE_PIN | LED_RED_PIN) << 16;
-  GPIOD_BSRR = ENABLE_LED_PIN << 16;
+  GPIOD_BSRR = GREEN_LED_MIRROR_PIN << 16;
 }
 
 static void ToggleLed(volatile u32 *SetResetRegister, u32 Pin, u8 *IsOn) {
@@ -68,12 +70,15 @@ static void ButtonLedTask(void) {
         Error_Handler();
       }
       eenable = (u8)!eenable;
-      GPIOD_BSRR = eenable != FALSE ? ENABLE_LED_PIN : ENABLE_LED_PIN << 16;
       if (Semaphore_Give(&ResourceSemaphore) != SEMAPHORE_OK) {
         Error_Handler();
       }
     }
   }
+
+  GPIOD_BSRR = (Tasks[1].TaskFlags & GREEN_LED_FLAG) != 0u
+                   ? GREEN_LED_MIRROR_PIN
+                   : GREEN_LED_MIRROR_PIN << 16;
 }
 
 static u8 SharedResourceIsEnabled(void) {
@@ -108,6 +113,7 @@ static void GreenLedTask(void) {
       Error_Handler();
     }
   }
+  Tasks[1].TaskFlags ^= GREEN_LED_FLAG;
 }
 
 static void BlueLedTask(void) {
@@ -149,13 +155,14 @@ int main(void) {
     Error_Handler();
   }
 
-  if (Task_Create(&Tasks[0], ButtonLedTask, 1u, 10u, "button-led", NULL) !=
+  if (Task_Create(&Tasks[0], ButtonLedTask, 1u, 10u, "button-led", NULL,
+                  NULL) != TASK_OK ||
+      Task_Create(&Tasks[1], GreenLedTask, 1u, 1000u, "green-0.5Hz",
+                  &GreenLedTaskFlags, NULL) != TASK_OK ||
+      Task_Create(&Tasks[2], BlueLedTask, 1u, 500u, "blue-1Hz", NULL, NULL) !=
           TASK_OK ||
-      Task_Create(&Tasks[1], GreenLedTask, 1u, 1000u, "green-0.5Hz", NULL) !=
-          TASK_OK ||
-      Task_Create(&Tasks[2], BlueLedTask, 1u, 500u, "blue-1Hz", NULL) !=
-          TASK_OK ||
-      Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz", NULL) != TASK_OK) {
+      Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz", NULL, NULL) !=
+          TASK_OK) {
     Error_Handler();
   }
 

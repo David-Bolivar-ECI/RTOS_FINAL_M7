@@ -14,12 +14,14 @@
 
 #include "List.h"
 #include "Queue.h"
+#include "MessageQueue.h"
 #include "Task.h"
 #include "Scheduler.h"
 #include "Mutex.h"
 #include "Semaphore.h"
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #endif //_RTOS_INCLUDES_H_

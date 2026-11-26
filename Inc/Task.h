@@ -5,7 +5,7 @@
  *              INCLUSION LIBRERIAS  h                 *
  *******************************************************/
 #include "AppTypes.h"
-#include "Queue.h"
+#include "MessageQueue.h"
 
 #ifndef RTOS_MIN_STACK_SIZE
 #define RTOS_MIN_STACK_SIZE 128u
@@ -73,6 +73,7 @@ typedef struct TCB {
   u32 TaskPeriodMs;
   u32 TaskLastRunMs;
   TaskFlags_t TaskFlags;
+  MessageQueueHandle_t TaskMessageQueue;
   TaskFunctionCallback TaskFunction;
   u32 *TaskStackPointer;
   u32 TaskExceptionReturn;
@@ -91,7 +92,8 @@ typedef TCB_t *TCB_Handle_t;
 u16 Task_Init(void);
 u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
                 u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName,
-                const TaskFlags_t *TaskFlags);
+                const TaskFlags_t *TaskFlags,
+                MessageQueueHandle_t TaskMessageQueue);
 u16 Task_GetIdByName(const char *TaskName);
 u8 Task_IsRegistered(TCB_Handle_t TaskControlBlock);
 u16 Task_Delete(TCB_t *TaskControlBlock);

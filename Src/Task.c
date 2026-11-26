@@ -34,7 +34,8 @@ u16 Task_Init(void) {
 
 u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
                 u8 TaskPriority, u32 TaskPeriodMs, const char *TaskName,
-                const TaskFlags_t *TaskFlags) {
+                const TaskFlags_t *TaskFlags,
+                MessageQueueHandle_t TaskMessageQueue) {
   u16 index;
   u16 schedulerStatus;
 
@@ -66,6 +67,7 @@ u16 Task_Create(TCB_t *TaskControlBlock, TaskFunctionCallback TaskFunction,
   TaskControlBlock->TaskLastRunMs = Scheduler_GetTick();
   TaskControlBlock->TaskFlags =
       TaskFlags != NULL ? *TaskFlags : RTOS_TASK_NO_FLAGS;
+  TaskControlBlock->TaskMessageQueue = TaskMessageQueue;
   TaskControlBlock->TaskFunction = TaskFunction;
   TaskControlBlock->MutexWaitQueueElement.Data = NULL;
   TaskControlBlock->MutexWaitQueueElement.Next = NULL;
