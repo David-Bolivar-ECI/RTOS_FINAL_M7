@@ -38,7 +38,7 @@ static void GPIO_Init(void) {
 }
 
 static void ToggleLed(volatile u32 *SetResetRegister, u32 Pin, u8 *IsOn) {
-  *IsOn = (u8)!(*IsOn);
+  *IsOn = (u8) !(*IsOn);
   *SetResetRegister = *IsOn != FALSE ? Pin : Pin << 16;
 }
 
@@ -46,7 +46,7 @@ static void ButtonLedTask(void) {
   static u8 candidateState;
   static u8 stableSamples;
   static u8 appliedState;
-  const u8 sampledState = (GPIOC_IDR & USER_BUTTON_PIN) != 0u ? TRUE : FALSE;
+  const u8 sampledState = (GPIOC_IDR & USER_BUTTON_PIN) != 0u ? FALSE : TRUE;
 
   if (sampledState == candidateState) {
     if (stableSamples < 3u) {
@@ -59,8 +59,7 @@ static void ButtonLedTask(void) {
 
   if (stableSamples >= 3u && candidateState != appliedState) {
     appliedState = candidateState;
-    GPIOD_BSRR =
-        appliedState != FALSE ? BUTTON_LED_PIN : BUTTON_LED_PIN << 16;
+    GPIOD_BSRR = appliedState != FALSE ? BUTTON_LED_PIN : BUTTON_LED_PIN << 16;
   }
 }
 
@@ -85,12 +84,11 @@ int main(void) {
     Error_Handler();
   }
 
-  if (Task_Create(&Tasks[0], ButtonLedTask, 1u, 10u, "button-led") !=
-          TASK_OK ||
+  if (Task_Create(&Tasks[0], ButtonLedTask, 1u, 10u, "button-led") != TASK_OK ||
       Task_Create(&Tasks[1], GreenLedTask, 1u, 1000u, "green-0.5Hz") !=
           TASK_OK ||
       Task_Create(&Tasks[2], BlueLedTask, 1u, 500u, "blue-1Hz") != TASK_OK ||
-      Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz") != TASK_OK) {
+      Task_Create(&Tasks[3], RedLedTask, 1u, 250u, "red-2Hz") != TASK_OK) {
     Error_Handler();
   }
 

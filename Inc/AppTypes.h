@@ -48,6 +48,7 @@
 #define QUEUE_BASE_ERROR 0x0100
 #define LIST_BASE_ERROR 0x0200
 #define TASK_BASE_ERROR 0X0300
+#define MUTEX_BASE_ERROR 0X0400
 
 /*******************************************************
  *            TIPOS PUBLICOS DEL MODULO H              *
