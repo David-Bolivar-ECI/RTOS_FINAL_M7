@@ -26,7 +26,7 @@ static const TaskFlags_t BuzzerTaskFlags[BUZZER_TONE_COUNT] = {
     BUZZER_TASK_FLAG, BUZZER_TASK_2_FLAG, BUZZER_TASK_3_FLAG,
     BUZZER_TASK_4_FLAG};
 static const u32 BuzzerPeriodCounts[BUZZER_TONE_COUNT] = {
-    2000u, 1000u, 500u, 4000u};
+    600u, 700u, 800u, 900u};
 static u8 BuzzerFlagWasSet[BUZZER_TONE_COUNT];
 static u8 BuzzerIsActive;
 static u8 ActiveBuzzerTone = BUZZER_NO_ACTIVE_TONE;
