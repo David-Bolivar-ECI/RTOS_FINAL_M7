@@ -136,6 +136,7 @@ static const u8 *St7789V_GetGlyph(char Character) {
   static const u8 glyphR[5] = {0x7Fu, 0x09u, 0x19u, 0x29u, 0x46u};
   static const u8 glyphI[5] = {0x00u, 0x41u, 0x7Fu, 0x41u, 0x00u};
   static const u8 glyphOne[5] = {0x00u, 0x42u, 0x7Fu, 0x40u, 0x00u};
+  static const u8 glyphTwo[5] = {0x42u, 0x61u, 0x51u, 0x49u, 0x46u};
   static const u8 glyphe[5] = {0x38u, 0x54u, 0x54u, 0x54u, 0x18u};
   static const u8 glyphl[5] = {0x00u, 0x41u, 0x7Fu, 0x40u, 0x00u};
   static const u8 glypho[5] = {0x38u, 0x44u, 0x44u, 0x44u, 0x38u};
@@ -175,6 +176,8 @@ static const u8 *St7789V_GetGlyph(char Character) {
     return glyphI;
   case '1':
     return glyphOne;
+  case '2':
+    return glyphTwo;
   case 'e':
     return glyphe;
   case 'l':

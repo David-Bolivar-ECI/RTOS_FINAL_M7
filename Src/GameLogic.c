@@ -6,10 +6,10 @@
 
 #include <stddef.h>
 
-#define GAME_BALL_SPEED_X 3
-#define GAME_BALL_SPEED_Y 2
-#define GAME_BALL_MAX_SPEED_X 6
-#define GAME_BALL_MAX_SPEED_Y 5
+#define GAME_BALL_SPEED_X 2
+#define GAME_BALL_SPEED_Y 1
+#define GAME_BALL_MAX_SPEED_X 8
+#define GAME_BALL_MAX_SPEED_Y 7
 #define GAME_BALL_SPEEDUP_INTERVAL_MS 3000u
 #define GAME_BAR_SPEED 3u
 #define GAME_P1_SOUTH_FLAG BUZZER_TASK_FLAG
@@ -39,6 +39,7 @@ static u8 initialStateSent;
 static u32 lastUpdateTick;
 static u32 resumeStartedTick;
 static u32 lastRespawnTick;
+static u32 bounceRandomState = 0x9E3779B9u;
 
 static void GameLogic_Fail(void) {
   __asm volatile("cpsid i");
@@ -150,6 +151,22 @@ static u16 GameLogic_CurrentVerticalSpeed(u32 Now) {
   return speed > GAME_BALL_MAX_SPEED_Y ? GAME_BALL_MAX_SPEED_Y : speed;
 }
 
+static void GameLogic_SeedBounceRandom(void) {
+  bounceRandomState = Scheduler_GetTick() ^ 0x9E3779B9u;
+  if (bounceRandomState == 0u) {
+    bounceRandomState = 0x9E3779B9u;
+  }
+}
+
+static u32 GameLogic_NextBounceRandom(void) {
+  u32 value = bounceRandomState;
+  value ^= value << 13;
+  value ^= value >> 17;
+  value ^= value << 5;
+  bounceRandomState = value;
+  return value;
+}
+
 static s16 GameLogic_ServeVerticalVelocity(u16 TargetBarY) {
   const u32 ballCenterY = GAME_INITIAL_BALL_Y + GAME_BALL_SIZE / 2u;
   const u32 targetCenterY = TargetBarY + GAME_BAR_HEIGHT / 2u;
@@ -161,6 +178,21 @@ static s16 GameLogic_ServeVerticalVelocity(u16 TargetBarY) {
     return GAME_BALL_SPEED_Y;
   }
   return 0;
+}
+
+static s16 GameLogic_PaddleBounceVelocity(u16 BallY, u16 BarY, u32 Now) {
+  const u32 ballCenterY = (u32)BallY + GAME_BALL_SIZE / 2u;
+  const u32 barCenterY = (u32)BarY + GAME_BAR_HEIGHT / 2u;
+  const s16 direction = ballCenterY < barCenterY ? -1 : 1;
+  s16 speed = (s16)GameLogic_CurrentVerticalSpeed(Now) +
+              (s16)(GameLogic_NextBounceRandom() % 3u) - 1;
+
+  if (speed < 1) {
+    speed = 1;
+  } else if (speed > GAME_BALL_MAX_SPEED_Y) {
+    speed = GAME_BALL_MAX_SPEED_Y;
+  }
+  return (s16)(direction * speed);
 }
 
 static void GameLogic_SetServe(s16 HorizontalVelocity, u16 TargetBarY,
@@ -208,11 +240,7 @@ static void GameLogic_MoveBall(u32 Now) {
       GameLogic_BallOverlapsBar((u16)nextY, bar1Y) != FALSE) {
     nextX = (s16)(GAME_BAR1_X + GAME_BAR_WIDTH);
     ballVelocityX = (s16)-ballVelocityX;
-    ballVelocityY =
-        (s16)((u32)nextY + GAME_BALL_SIZE / 2u <
-                      (u32)bar1Y + GAME_BAR_HEIGHT / 2u
-                  ? -(s16)GameLogic_CurrentVerticalSpeed(Now)
-                  : (s16)GameLogic_CurrentVerticalSpeed(Now));
+    ballVelocityY = GameLogic_PaddleBounceVelocity((u16)nextY, bar1Y, Now);
     BuzzerTask_PlayPaddleBounce();
   } else if (ballVelocityX > 0 &&
              (u32)nextX + GAME_BALL_SIZE >= GAME_BAR2_X &&
@@ -220,11 +248,7 @@ static void GameLogic_MoveBall(u32 Now) {
              GameLogic_BallOverlapsBar((u16)nextY, bar2Y) != FALSE) {
     nextX = (s16)(GAME_BAR2_X - GAME_BALL_SIZE);
     ballVelocityX = (s16)-ballVelocityX;
-    ballVelocityY =
-        (s16)((u32)nextY + GAME_BALL_SIZE / 2u <
-                      (u32)bar2Y + GAME_BAR_HEIGHT / 2u
-                  ? -(s16)GameLogic_CurrentVerticalSpeed(Now)
-                  : (s16)GameLogic_CurrentVerticalSpeed(Now));
+    ballVelocityY = GameLogic_PaddleBounceVelocity((u16)nextY, bar2Y, Now);
     BuzzerTask_PlayPaddleBounce();
   }
 
@@ -278,6 +302,7 @@ u8 GameLogic_Init(TCB_t *P1SouthTask, TCB_t *P1NorthTask,
 void GameLogic_HandleUserButton(void) {
   const u32 previousInterruptState = Scheduler_EnterCritical();
   if (mode == GAME_MODE_WELCOME) {
+    GameLogic_SeedBounceRandom();
     mode = GAME_MODE_GAME;
     resumeDelayNeeded = TRUE;
     servePending = TRUE;
