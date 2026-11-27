@@ -2,6 +2,8 @@
 target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/syscall.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/sysmem.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Src/ButtonTask.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Src/BuzzerTask.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/startup_stm32f767xx.S"
 )

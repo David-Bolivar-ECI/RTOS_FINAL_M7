@@ -72,7 +72,7 @@ typedef struct TCB {
   u8 TaskPriority;
   u32 TaskPeriodMs;
   u32 TaskLastRunMs;
-  TaskFlags_t TaskFlags;
+  volatile TaskFlags_t TaskFlags;
   MessageQueueHandle_t TaskMessageQueue;
   TaskFunctionCallback TaskFunction;
   u32 *TaskStackPointer;

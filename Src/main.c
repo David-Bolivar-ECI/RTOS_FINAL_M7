@@ -1,4 +1,6 @@
 #include "RtosIncludes.h"
+#include "ButtonTask.h"
+#include "BuzzerTask.h"
 #include "DisplayTask.h"
 #include "St7789v.h"
 
@@ -18,7 +20,7 @@
 #define USER_BUTTON_PIN (1u << 13)
 #define GREEN_LED_FLAG (1u << 0)
 
-static TCB_t Tasks[5];
+static TCB_t Tasks[13];
 static Mutex_t LedMutex;
 static Mutex_t GreenBlueMutex;
 static Semaphore_t ResourceSemaphore;
@@ -175,23 +177,9 @@ static void BlueLedTask(void) {
 }
 
 static void RedLedTask(void) {
-  static u8 isOn;
-
-  if (isOn == FALSE && SharedResourceIsEnabled() == FALSE) {
-    return;
-  }
-
-  if (isOn == FALSE) {
-    if (Mutex_Take(&LedMutex) != MUTEX_OK) {
-      Error_Handler();
-    }
-    ToggleLed(&GPIOB_BSRR, LED_RED_PIN, &isOn);
-  } else {
-    ToggleLed(&GPIOB_BSRR, LED_RED_PIN, &isOn);
-    if (Mutex_Release(&LedMutex) != MUTEX_OK) {
-      Error_Handler();
-    }
-  }
+  GPIOB_BSRR = ButtonTask_AnyPressed() != FALSE
+                   ? LED_RED_PIN
+                   : LED_RED_PIN << 16;
 }
 
 int main(void) {
@@ -215,10 +203,31 @@ int main(void) {
                   &GreenLedTaskFlags, NULL) != TASK_OK ||
       Task_Create(&Tasks[2], BlueLedTask, 1u, 1000u, "blue-message",
                   NULL, &BlueLedMessageQueue) != TASK_OK ||
-      Task_Create(&Tasks[3], RedLedTask, 1u, 100u, "red-5Hz", NULL, NULL) !=
-          TASK_OK ||
+      Task_Create(&Tasks[3], RedLedTask, 1u, 10u, "red-button-state", NULL,
+                  NULL) != TASK_OK ||
       Task_Create(&Tasks[4], DisplayTask_Run, 1u, 1u, "display", NULL, NULL) !=
-          TASK_OK) {
+          TASK_OK ||
+      Task_Create(&Tasks[5], BuzzerTask_Run, 1u, 10u, "buzzer", NULL, NULL) !=
+          TASK_OK ||
+      Task_Create(&Tasks[6], BuzzerTask2_Run, 1u, 10u, "buzzer-2", NULL,
+                  NULL) != TASK_OK ||
+      Task_Create(&Tasks[7], BuzzerTask3_Run, 1u, 10u, "buzzer-3", NULL,
+                  NULL) != TASK_OK ||
+      Task_Create(&Tasks[8], BuzzerTask4_Run, 1u, 10u, "buzzer-4", NULL,
+                  NULL) != TASK_OK ||
+      Task_Create(&Tasks[9], P1ButtonSouthTask, 1u, 10u, "p1-button-south",
+                  NULL, NULL) != TASK_OK ||
+      Task_Create(&Tasks[10], P1ButtonNorthTask, 1u, 10u, "p1-button-north",
+                  NULL, NULL) != TASK_OK ||
+      Task_Create(&Tasks[11], P2ButtonNorthTask, 1u, 10u, "p2-button-north",
+                  NULL, NULL) != TASK_OK ||
+      Task_Create(&Tasks[12], P2ButtonSouthTask, 1u, 10u, "p2-button-south",
+                  NULL, NULL) != TASK_OK) {
+    Error_Handler();
+  }
+
+  if (BuzzerTask_Init(&Tasks[5], &Tasks[6], &Tasks[7], &Tasks[8]) == FALSE ||
+      ButtonTask_Init(&Tasks[5], &Tasks[6], &Tasks[7], &Tasks[8]) == FALSE) {
     Error_Handler();
   }
 
@@ -227,8 +236,6 @@ int main(void) {
       Semaphore_Grant(&ResourceSemaphore, &Tasks[1],
                       SEMAPHORE_ACCESS_READ) != SEMAPHORE_OK ||
       Semaphore_Grant(&ResourceSemaphore, &Tasks[2],
-                      SEMAPHORE_ACCESS_READ) != SEMAPHORE_OK ||
-      Semaphore_Grant(&ResourceSemaphore, &Tasks[3],
                       SEMAPHORE_ACCESS_READ) != SEMAPHORE_OK) {
     Error_Handler();
   }
