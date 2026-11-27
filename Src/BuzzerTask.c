@@ -18,36 +18,87 @@
 #define TIM1_BDTR (*(volatile u32 *)0x40010044u)
 
 #define BUZZER_PWM_DURATION_MS 200
-#define BUZZER_TONE_COUNT 4u
+#define BUZZER_BUTTON_STATE_TASK_COUNT 4u
+#define BUZZER_GAME_TONE_COUNT 3u
+#define BUZZER_TONE_COUNT BUZZER_GAME_TONE_COUNT
+#define BUZZER_WELCOME_NOTE_COUNT 4u
+#define BUZZER_WELCOME_NOTE_DURATION_MS 150u
 #define BUZZER_NO_ACTIVE_TONE BUZZER_TONE_COUNT
 
-static TCB_t *BuzzerTaskControlBlocks[BUZZER_TONE_COUNT];
-static const TaskFlags_t BuzzerTaskFlags[BUZZER_TONE_COUNT] = {
-    BUZZER_TASK_FLAG, BUZZER_TASK_2_FLAG, BUZZER_TASK_3_FLAG,
-    BUZZER_TASK_4_FLAG};
+static TCB_t *BuzzerTaskControlBlocks[BUZZER_BUTTON_STATE_TASK_COUNT];
+static const TaskFlags_t BuzzerGameFlags[BUZZER_GAME_TONE_COUNT] = {
+    BUZZER_GAME_WALL_FLAG, BUZZER_GAME_PADDLE_FLAG, BUZZER_GAME_SIDE_FLAG};
+static const u32 BuzzerWelcomeNotePeriods[BUZZER_WELCOME_NOTE_COUNT] = {
+    1490u, 1226u, 1000u, 1226u};
 static const u32 BuzzerPeriodCounts[BUZZER_TONE_COUNT] = {
-    600u, 700u, 800u, 900u};
-static u8 BuzzerFlagWasSet[BUZZER_TONE_COUNT];
+    1226u, 1459u, 1490u};
 static u8 BuzzerIsActive;
+static u8 BuzzerWelcomeJingleActive;
+static u8 BuzzerWelcomeNote;
 static u8 ActiveBuzzerTone = BUZZER_NO_ACTIVE_TONE;
 static u32 BuzzerStartTick;
+static u32 BuzzerWelcomeNoteStartTick;
+
+static void BuzzerTask_StartTone(u32 PeriodCounts, u32 CurrentTick) {
+  TIM1_ARR = PeriodCounts - 1u;
+  TIM1_CCR2 = PeriodCounts / 2u;
+  TIM1_EGR = 1u;
+  BuzzerStartTick = CurrentTick;
+  BuzzerIsActive = TRUE;
+}
 
 static void BuzzerTask_Service(void) {
   u8 requestedTone = BUZZER_NO_ACTIVE_TONE;
+  u8 welcomeJingleRequested = FALSE;
   u8 index;
   const u32 currentTick = Scheduler_GetTick();
 
-  for (index = 0u; index < BUZZER_TONE_COUNT; index++) {
-    const u8 flagIsSet =
-        (BuzzerTaskControlBlocks[index]->TaskFlags & BuzzerTaskFlags[index]) !=
-                0u
-            ? TRUE
-            : FALSE;
-    if (flagIsSet != FALSE && BuzzerFlagWasSet[index] == FALSE &&
-        requestedTone == BUZZER_NO_ACTIVE_TONE) {
-      requestedTone = index;
+  {
+    const u32 previousInterruptState = Scheduler_EnterCritical();
+    if ((BuzzerTaskControlBlocks[0]->TaskFlags & BUZZER_WELCOME_FLAG) != 0u) {
+      BuzzerTaskControlBlocks[0]->TaskFlags &= ~BUZZER_WELCOME_FLAG;
+      welcomeJingleRequested = TRUE;
     }
-    BuzzerFlagWasSet[index] = flagIsSet;
+    Scheduler_ExitCritical(previousInterruptState);
+  }
+
+  for (index = 0u; index < BUZZER_GAME_TONE_COUNT; index++) {
+    const u32 previousInterruptState = Scheduler_EnterCritical();
+    if ((BuzzerTaskControlBlocks[0]->TaskFlags & BuzzerGameFlags[index]) !=
+        0u) {
+      BuzzerTaskControlBlocks[0]->TaskFlags &= ~BuzzerGameFlags[index];
+      if (requestedTone == BUZZER_NO_ACTIVE_TONE) {
+        requestedTone = index;
+      }
+    }
+    Scheduler_ExitCritical(previousInterruptState);
+  }
+
+  if (welcomeJingleRequested != FALSE) {
+    BuzzerWelcomeJingleActive = TRUE;
+    BuzzerWelcomeNote = 0u;
+    BuzzerWelcomeNoteStartTick = currentTick;
+    ActiveBuzzerTone = BUZZER_NO_ACTIVE_TONE;
+    BuzzerTask_StartTone(BuzzerWelcomeNotePeriods[BuzzerWelcomeNote],
+                         currentTick);
+    return;
+  }
+  if (BuzzerWelcomeJingleActive != FALSE) {
+    if ((u32)(currentTick - BuzzerWelcomeNoteStartTick) >=
+        BUZZER_WELCOME_NOTE_DURATION_MS) {
+      BuzzerWelcomeNote++;
+      if (BuzzerWelcomeNote >= BUZZER_WELCOME_NOTE_COUNT) {
+        TIM1_CCR2 = 0u;
+        BuzzerIsActive = FALSE;
+        BuzzerWelcomeJingleActive = FALSE;
+        ActiveBuzzerTone = BUZZER_NO_ACTIVE_TONE;
+        return;
+      }
+      BuzzerWelcomeNoteStartTick = currentTick;
+      BuzzerTask_StartTone(BuzzerWelcomeNotePeriods[BuzzerWelcomeNote],
+                           currentTick);
+    }
+    return;
   }
 
   if (BuzzerIsActive != FALSE &&
@@ -59,12 +110,7 @@ static void BuzzerTask_Service(void) {
 
   if (requestedTone != BUZZER_NO_ACTIVE_TONE &&
       (BuzzerIsActive == FALSE || requestedTone < ActiveBuzzerTone)) {
-    const u32 periodCounts = BuzzerPeriodCounts[requestedTone];
-    TIM1_ARR = periodCounts - 1u;
-    TIM1_CCR2 = periodCounts / 2u;
-    TIM1_EGR = 1u;
-    BuzzerStartTick = currentTick;
-    BuzzerIsActive = TRUE;
+    BuzzerTask_StartTone(BuzzerPeriodCounts[requestedTone], currentTick);
     ActiveBuzzerTone = requestedTone;
   }
 }
@@ -109,3 +155,27 @@ void BuzzerTask2_Run(void) { BuzzerTask_Service(); }
 void BuzzerTask3_Run(void) { BuzzerTask_Service(); }
 
 void BuzzerTask4_Run(void) { BuzzerTask_Service(); }
+
+static void BuzzerTask_SetGameFlag(TaskFlags_t Flag) {
+  const u32 previousInterruptState = Scheduler_EnterCritical();
+  if (BuzzerTaskControlBlocks[0] != NULL) {
+    BuzzerTaskControlBlocks[0]->TaskFlags |= Flag;
+  }
+  Scheduler_ExitCritical(previousInterruptState);
+}
+
+void BuzzerTask_PlayWallBounce(void) {
+  BuzzerTask_SetGameFlag(BUZZER_GAME_WALL_FLAG);
+}
+
+void BuzzerTask_PlayPaddleBounce(void) {
+  BuzzerTask_SetGameFlag(BUZZER_GAME_PADDLE_FLAG);
+}
+
+void BuzzerTask_PlaySideBounce(void) {
+  BuzzerTask_SetGameFlag(BUZZER_GAME_SIDE_FLAG);
+}
+
+void BuzzerTask_PlayWelcomeJingle(void) {
+  BuzzerTask_SetGameFlag(BUZZER_WELCOME_FLAG);
+}

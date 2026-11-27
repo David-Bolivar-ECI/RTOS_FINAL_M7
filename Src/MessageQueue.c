@@ -6,7 +6,7 @@ typedef struct {
 } MessageQueueNode_t;
 
 static u8 MessageQueue_IsValidType(MessageType_t MsgType) {
-  return (u32)MsgType <= (u32)MESSAGE_TYPE_BAR;
+  return (u32)MsgType <= (u32)MESSAGE_TYPE_VICTORY_WINNER;
 }
 
 u16 MessageQueue_Init(MessageQueueHandle_t MessageQueue) {
