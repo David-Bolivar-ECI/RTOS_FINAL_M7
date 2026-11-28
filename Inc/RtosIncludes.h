@@ -6,7 +6,7 @@
  *******************************************************/
 
 #include "AppTypes.h"
-#define RTOS_MAX_TASKS 8
+#define RTOS_MAX_TASKS 15
 #define RTOS_MAX_TASKS_PRIORITIES 16
 #define RTOS_MAX_SEMAPHORES 8
 #define RTOS_MIN_PRIORITY RTOS_MAX_TASKS_PRIORITIES - 1
